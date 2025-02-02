@@ -11,6 +11,8 @@ import burp.api.montoya.ui.editor.extension.EditorCreationContext;
 import burp.api.montoya.ui.editor.extension.ExtensionProvidedHttpResponseEditor;
 
 import java.awt.*;
+import java.beans.PropertyChangeEvent;
+import java.beans.PropertyChangeListener;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -29,7 +31,7 @@ public record CustomHighlight(int startLine, int endLine, Color color) {
 
 }
 
-class CustomHttpResponseEditor implements ExtensionProvidedHttpResponseEditor {
+class CustomHttpResponseEditor implements ExtensionProvidedHttpResponseEditor, PropertyChangeListener {
 
     private final MontoyaApi api;
 
@@ -71,7 +73,7 @@ class CustomHttpResponseEditor implements ExtensionProvidedHttpResponseEditor {
         }
 
         HttpResponse curr = requestResponse.response();
-        HttpResponse base = BaseResponse.baseResponse.orElse(curr);
+        HttpResponse base = BaseResponse.getBaseResponse().orElse(curr);
 
         List<CustomHighlight> highlighters = new ArrayList<>();
         String diff = generateDiff(base.toString(), curr.toString(), highlighters);
@@ -114,6 +116,12 @@ class CustomHttpResponseEditor implements ExtensionProvidedHttpResponseEditor {
     @Override
     public boolean isModified() {
         return responseEditor.isModified();
+    }
+
+    @Override
+    public void propertyChange(PropertyChangeEvent evt) {
+        // Update with itself (last set response)
+        setRequestResponse(this.requestResponse);
     }
 
     public String generateDiff(String baseText, String newText, List<CustomHighlight> highlighters) {

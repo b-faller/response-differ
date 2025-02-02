@@ -33,7 +33,7 @@ public class CustomContextMenuItemsProvider implements ContextMenuItemsProvider 
 
         JMenuItem menuItem = new JMenuItem("Set As Diff Base");
         menuItem.addActionListener(l -> {
-            BaseResponse.baseResponse = response;
+            BaseResponse.setBaseResponse(response);
         });
         List<Component> menuItemList = List.of(menuItem);
 

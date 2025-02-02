@@ -14,6 +14,8 @@ class CustomResponseEditorProvider implements HttpResponseEditorProvider {
 
     @Override
     public ExtensionProvidedHttpResponseEditor provideHttpResponseEditor(EditorCreationContext creationContext) {
-        return new CustomHttpResponseEditor(api, creationContext);
+        CustomHttpResponseEditor editor = new CustomHttpResponseEditor(api, creationContext);
+        BaseResponse.addPropertyChangeListener(editor);
+        return editor;
     }
 }
