@@ -19,20 +19,13 @@ import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.DefaultHighlighter;
-import javax.swing.text.Highlighter;
-import javax.swing.text.DefaultHighlighter.DefaultHighlightPainter;
-import javax.swing.text.Highlighter.Highlight;
-import javax.swing.text.Highlighter.HighlightPainter;
 
 import com.github.difflib.DiffUtils;
-import com.github.difflib.algorithm.DiffAlgorithmFactory;
-import com.github.difflib.algorithm.DiffAlgorithmI;
-import com.github.difflib.algorithm.DiffAlgorithmListener;
 import com.github.difflib.algorithm.myers.MyersDiff;
 import com.github.difflib.patch.AbstractDelta;
 import com.github.difflib.patch.Patch;
 
-public record CustomHighlight(int start, int end, Color color) {
+public record CustomHighlight(int startLine, int endLine, Color color) {
 
 }
 
@@ -84,10 +77,13 @@ class CustomHttpResponseEditor implements ExtensionProvidedHttpResponseEditor {
         String diff = generateDiff(base.toString(), curr.toString(), highlighters);
 
         this.responseEditor.setContents(ByteArray.byteArray(diff));
+        this.textArea.getHighlighter().removeAllHighlights();
 
         for (CustomHighlight h : highlighters) {
             try {
-                textArea.getHighlighter().addHighlight(h.start(), h.end(),
+                int startOffset = textArea.getLineStartOffset(h.startLine());
+                int endOffset = textArea.getLineEndOffset(h.endLine() - 1);
+                textArea.getHighlighter().addHighlight(startOffset, endOffset,
                         new DefaultHighlighter.DefaultHighlightPainter(h.color()));
             } catch (BadLocationException e) {
                 api.logging().logToError(e);
@@ -127,30 +123,40 @@ class CustomHttpResponseEditor implements ExtensionProvidedHttpResponseEditor {
 
         Patch<String> patch = DiffUtils.diff(baseLines, newLines, new MyersDiff<>(), null, true);
 
-        for (AbstractDelta<String> delta : patch.getDeltas()) {
-            int start = result.length();
+        int startLine = 0;
+        int endLine = 0;
 
+        for (AbstractDelta<String> delta : patch.getDeltas()) {
             switch (delta.getType()) {
                 case INSERT:
                     delta.getTarget().getLines().forEach(line -> result.append(line).append("\n"));
-                    highlighters.add(new CustomHighlight(start, result.length(), new Color(80, 120, 93)));
+                    endLine = startLine + delta.getTarget().getLines().size();
+                    highlighters.add(new CustomHighlight(startLine, endLine, new Color(80, 120, 93)));
+                    startLine = endLine;
                     break;
 
                 case DELETE:
                     delta.getSource().getLines().forEach(line -> result.append(line).append("\n"));
-                    highlighters.add(new CustomHighlight(start, result.length(), new Color(179, 84, 71)));
+                    endLine = startLine + delta.getSource().getLines().size();
+                    highlighters.add(new CustomHighlight(startLine, endLine, new Color(179, 84, 71)));
+                    startLine = endLine;
                     break;
 
                 case CHANGE:
                     delta.getSource().getLines().forEach(line -> result.append(line).append("\n"));
-                    highlighters.add(new CustomHighlight(start, result.length(), new Color(105, 46, 75)));
-                    start = result.length();
+                    endLine = startLine + delta.getSource().getLines().size();
+                    highlighters.add(new CustomHighlight(startLine, endLine, new Color(105, 46, 75)));
+                    startLine = endLine;
                     delta.getTarget().getLines().forEach(line -> result.append(line).append("\n"));
-                    highlighters.add(new CustomHighlight(start, result.length(), new Color(55, 69, 102)));
+                    endLine = startLine + delta.getTarget().getLines().size();
+                    highlighters.add(new CustomHighlight(startLine, endLine, new Color(55, 69, 102)));
+                    startLine = endLine;
                     break;
 
                 case EQUAL:
                     delta.getSource().getLines().forEach(line -> result.append(line).append("\n"));
+                    endLine = startLine + delta.getTarget().getLines().size();
+                    startLine = endLine;
                     break;
             }
         }

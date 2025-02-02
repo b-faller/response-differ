@@ -1,13 +1,11 @@
 package burp;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
 import javax.swing.JMenuItem;
 
 import burp.api.montoya.MontoyaApi;
-import burp.api.montoya.core.ToolType;
 import burp.api.montoya.http.message.HttpRequestResponse;
 import burp.api.montoya.http.message.responses.HttpResponse;
 import burp.api.montoya.ui.contextmenu.ContextMenuEvent;
