@@ -23,20 +23,33 @@ public class CustomContextMenuItemsProvider implements ContextMenuItemsProvider 
 
     @Override
     public List<Component> provideMenuItems(ContextMenuEvent event) {
-        HttpRequestResponse requestResponse = event.messageEditorRequestResponse().isPresent()
-                ? event.messageEditorRequestResponse().get().requestResponse()
-                : event.selectedRequestResponses().get(0);
-        Optional<HttpResponse> response = Optional.ofNullable(requestResponse.response());
-        if (response.isEmpty()) {
+        HttpRequestResponse requestResponse = null;
+        
+        // Get HTTP request/response from editor if available
+        if (event.messageEditorRequestResponse().isPresent()) {
+            requestResponse = event.messageEditorRequestResponse().get().requestResponse();
+        }
+        
+        // Fall back to selected requests if editor is empty
+        if (requestResponse == null && !event.selectedRequestResponses().isEmpty()) {
+            requestResponse = event.selectedRequestResponses().get(0);
+        }
+        
+        // Return null if no request/response is available
+        if (requestResponse == null) {
             return null;
         }
-
+        
+        // Get the response and return null if not present
+        HttpResponse response = requestResponse.response();
+        if (response == null) {
+            return null;
+        }
+        
+        // Create menu item
         JMenuItem menuItem = new JMenuItem("Set As Diff Base");
-        menuItem.addActionListener(l -> {
-            BaseResponse.setBaseResponse(response);
-        });
-        List<Component> menuItemList = List.of(menuItem);
-
-        return menuItemList;
+        menuItem.addActionListener(l -> BaseResponse.setBaseResponse(Optional.of(response)));
+        
+        return List.of(menuItem);
     }
 }
