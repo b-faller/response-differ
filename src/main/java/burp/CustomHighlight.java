@@ -100,7 +100,7 @@ class CustomHttpResponseEditor implements ExtensionProvidedHttpResponseEditor, P
 
     @Override
     public String caption() {
-        return "Diff";
+        return "Full diff";
     }
 
     @Override

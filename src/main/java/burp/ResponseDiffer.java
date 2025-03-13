@@ -10,6 +10,7 @@ public class ResponseDiffer implements BurpExtension {
         api.extension().setName("ResponseDiffer");
 
         api.userInterface().registerHttpResponseEditorProvider(new CustomResponseEditorProvider(api));
+        api.userInterface().registerHttpResponseEditorProvider(new CustomResponseEditorProviderMinimal(api));
         api.userInterface().registerContextMenuItemsProvider(new CustomContextMenuItemsProvider(api));
 
         api.logging().logToOutput("ResponseDiffer extension loaded");
