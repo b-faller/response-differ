@@ -1,30 +1,18 @@
 package burp;
 
 import burp.api.montoya.MontoyaApi;
-import burp.api.montoya.core.ByteArray;
-import burp.api.montoya.http.message.HttpRequestResponse;
-import burp.api.montoya.http.message.responses.HttpResponse;
-import burp.api.montoya.ui.Selection;
-import burp.api.montoya.ui.editor.EditorOptions;
-import burp.api.montoya.ui.editor.RawEditor;
 import burp.api.montoya.ui.editor.extension.EditorCreationContext;
-import burp.api.montoya.ui.editor.extension.ExtensionProvidedHttpResponseEditor;
 
 import java.awt.*;
-import java.beans.PropertyChangeEvent;
-import java.beans.PropertyChangeListener;
-import java.util.ArrayList;
+
 import java.util.Arrays;
 import java.util.List;
 
-import javax.swing.JScrollPane;
-import javax.swing.JTextArea;
-import javax.swing.text.BadLocationException;
-import javax.swing.text.DefaultHighlighter;
 
 import com.github.difflib.DiffUtils;
 import com.github.difflib.algorithm.myers.MyersDiff;
 import com.github.difflib.patch.AbstractDelta;
+import com.github.difflib.patch.DeltaType;
 import com.github.difflib.patch.Patch;
 
 public class OnlyChangesHighlighterEditor extends CustomHttpResponseEditor {
@@ -37,7 +25,7 @@ public class OnlyChangesHighlighterEditor extends CustomHttpResponseEditor {
         return "Minimal diff";
     }
 
-    @Override
+    
     public String generateDiff(String baseText, String newText, List<CustomHighlight> highlighters) {
         List<String> baseLines = Arrays.asList(baseText.split("\n"));
         List<String> newLines = Arrays.asList(newText.split("\n"));
@@ -46,40 +34,56 @@ public class OnlyChangesHighlighterEditor extends CustomHttpResponseEditor {
         Patch<String> patch = DiffUtils.diff(baseLines, newLines, new MyersDiff<>(), null, true);
 
         int startLine = 0;
-        int endLine = 0;
+        int lineNumberInUnshortenedText = 1;
+
+        Color insertColor = getInsertColor();
+        Color deleteColor = getDeleteColor();
 
         for (AbstractDelta<String> delta : patch.getDeltas()) {
+            if (delta.getType() != DeltaType.EQUAL) {
+                // Print a header where the difference is
+                result.append(String.format("Difference in line %d:\n", lineNumberInUnshortenedText));
+                startLine++;
+            }
+            int endLine = -1;
+
             switch (delta.getType()) {
                 case INSERT:
                     delta.getTarget().getLines().forEach(line -> result.append(line).append("\n"));
                     endLine = startLine + delta.getTarget().getLines().size();
-                    highlighters.add(new CustomHighlight(startLine, endLine, new Color(80, 120, 93)));
-                    startLine = endLine;
+                    highlighters.add(new CustomHighlight(startLine, endLine, insertColor));
                     break;
 
                 case DELETE:
                     delta.getSource().getLines().forEach(line -> result.append(line).append("\n"));
                     endLine = startLine + delta.getSource().getLines().size();
-                    highlighters.add(new CustomHighlight(startLine, endLine, new Color(179, 84, 71)));
-                    startLine = endLine;
+                    highlighters.add(new CustomHighlight(startLine, endLine, deleteColor));
                     break;
 
                 case CHANGE:
                     delta.getSource().getLines().forEach(line -> result.append(line).append("\n"));
                     endLine = startLine + delta.getSource().getLines().size();
-                    highlighters.add(new CustomHighlight(startLine, endLine, new Color(105, 46, 75)));
+                    highlighters.add(new CustomHighlight(startLine, endLine, deleteColor));
                     startLine = endLine;
                     delta.getTarget().getLines().forEach(line -> result.append(line).append("\n"));
                     endLine = startLine + delta.getTarget().getLines().size();
-                    highlighters.add(new CustomHighlight(startLine, endLine, new Color(55, 69, 102)));
-                    startLine = endLine;
+                    highlighters.add(new CustomHighlight(startLine, endLine, insertColor));
                     break;
 
                 case EQUAL:
-                    // Re remove this not not show equal lines
+                    // result.append(String.format("[%d equal lines]\n", delta.getTarget().getLines().size()));
+                    // startLine++;
                     break;
             }
+            if (delta.getType() != DeltaType.EQUAL) {
+                // Print a header where the difference is
+                result.append("\n");
+                startLine = endLine + 1;
+            }
+
+            lineNumberInUnshortenedText += delta.getTarget().getLines().size();
         }
+
 
         return result.toString();
     }

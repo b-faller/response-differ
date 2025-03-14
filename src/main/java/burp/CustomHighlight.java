@@ -5,6 +5,7 @@ import burp.api.montoya.core.ByteArray;
 import burp.api.montoya.http.message.HttpRequestResponse;
 import burp.api.montoya.http.message.responses.HttpResponse;
 import burp.api.montoya.ui.Selection;
+import burp.api.montoya.ui.Theme;
 import burp.api.montoya.ui.editor.EditorOptions;
 import burp.api.montoya.ui.editor.RawEditor;
 import burp.api.montoya.ui.editor.extension.EditorCreationContext;
@@ -16,7 +17,10 @@ import java.beans.PropertyChangeListener;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 
+import javax.swing.JButton;
+import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
 import javax.swing.text.BadLocationException;
@@ -37,6 +41,8 @@ class CustomHttpResponseEditor implements ExtensionProvidedHttpResponseEditor, P
 
     private final RawEditor responseEditor;
     private final JTextArea textArea;
+    private final JButton setBaselineButton;
+    private final JPanel tabRoot;
 
     private HttpRequestResponse requestResponse;
 
@@ -52,6 +58,17 @@ class CustomHttpResponseEditor implements ExtensionProvidedHttpResponseEditor, P
         JScrollPane scrollPane = (JScrollPane) ((Container) responseEditor.uiComponent()).getComponents()[1];
         // Burp Suite uses apparently a modified JTextArea, so we can cast to to one
         this.textArea = (JTextArea) scrollPane.getViewport().getView();
+
+        setBaselineButton = new JButton("Set As Diff Base");
+        setBaselineButton.addActionListener(e -> {
+            HttpResponse response = getResponse();
+            Optional<HttpResponse> responseAsOptional = (response != null) ? Optional.of(response) : Optional.empty();
+            BaseResponse.setBaseResponse(responseAsOptional);
+        });
+        
+        tabRoot = new JPanel(new BorderLayout());
+        tabRoot.add(responseEditor.uiComponent(), BorderLayout.CENTER);
+        tabRoot.add(setBaselineButton, BorderLayout.NORTH);
 
         // Enable line wrap
         textArea.setLineWrap(true);
@@ -105,7 +122,7 @@ class CustomHttpResponseEditor implements ExtensionProvidedHttpResponseEditor, P
 
     @Override
     public Component uiComponent() {
-        return responseEditor.uiComponent();
+        return tabRoot;
     }
 
     @Override
@@ -124,6 +141,18 @@ class CustomHttpResponseEditor implements ExtensionProvidedHttpResponseEditor, P
         setRequestResponse(this.requestResponse);
     }
 
+    public boolean isDarkMode() {
+        return api.userInterface().currentTheme() == Theme.DARK;
+    }
+
+    public Color getInsertColor() {
+        return isDarkMode() ? new Color(80, 120, 93) : Color.GREEN;
+    }
+
+    public Color getDeleteColor() {
+        return isDarkMode() ? new Color(179, 84, 71) : new Color(244, 77, 65);
+    }
+
     public String generateDiff(String baseText, String newText, List<CustomHighlight> highlighters) {
         List<String> baseLines = Arrays.asList(baseText.split("\n"));
         List<String> newLines = Arrays.asList(newText.split("\n"));
@@ -134,30 +163,33 @@ class CustomHttpResponseEditor implements ExtensionProvidedHttpResponseEditor, P
         int startLine = 0;
         int endLine = 0;
 
+        Color insertColor = getInsertColor();
+        Color deleteColor = getDeleteColor();
+
         for (AbstractDelta<String> delta : patch.getDeltas()) {
             switch (delta.getType()) {
                 case INSERT:
                     delta.getTarget().getLines().forEach(line -> result.append(line).append("\n"));
                     endLine = startLine + delta.getTarget().getLines().size();
-                    highlighters.add(new CustomHighlight(startLine, endLine, new Color(80, 120, 93)));
+                    highlighters.add(new CustomHighlight(startLine, endLine, insertColor));
                     startLine = endLine;
                     break;
 
                 case DELETE:
                     delta.getSource().getLines().forEach(line -> result.append(line).append("\n"));
                     endLine = startLine + delta.getSource().getLines().size();
-                    highlighters.add(new CustomHighlight(startLine, endLine, new Color(179, 84, 71)));
+                    highlighters.add(new CustomHighlight(startLine, endLine, deleteColor));
                     startLine = endLine;
                     break;
 
                 case CHANGE:
                     delta.getSource().getLines().forEach(line -> result.append(line).append("\n"));
                     endLine = startLine + delta.getSource().getLines().size();
-                    highlighters.add(new CustomHighlight(startLine, endLine, new Color(105, 46, 75)));
+                    highlighters.add(new CustomHighlight(startLine, endLine, deleteColor));
                     startLine = endLine;
                     delta.getTarget().getLines().forEach(line -> result.append(line).append("\n"));
                     endLine = startLine + delta.getTarget().getLines().size();
-                    highlighters.add(new CustomHighlight(startLine, endLine, new Color(55, 69, 102)));
+                    highlighters.add(new CustomHighlight(startLine, endLine, insertColor));
                     startLine = endLine;
                     break;
 
