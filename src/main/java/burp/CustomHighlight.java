@@ -37,6 +37,8 @@ public record CustomHighlight(int startLine, int endLine, Color color) {
 
 class CustomHttpResponseEditor implements ExtensionProvidedHttpResponseEditor, PropertyChangeListener {
 
+    private static final int HIGHLIGHT_ALPHA_LIGHT_MODE = 0x60;
+    private static final int HIGHLIGHT_ALPHA_DARK_MODE = 0x2a;
     private final MontoyaApi api;
 
     private final RawEditor responseEditor;
@@ -146,11 +148,11 @@ class CustomHttpResponseEditor implements ExtensionProvidedHttpResponseEditor, P
     }
 
     public Color getInsertColor() {
-        return isDarkMode() ? new Color(80, 120, 93) : Color.GREEN;
+        return isDarkMode() ? new Color(0, 255, 0, HIGHLIGHT_ALPHA_DARK_MODE) : new Color(0, 255, 0, HIGHLIGHT_ALPHA_LIGHT_MODE);
     }
 
     public Color getDeleteColor() {
-        return isDarkMode() ? new Color(179, 84, 71) : new Color(244, 77, 65);
+        return isDarkMode() ? new Color(255, 84, 0, HIGHLIGHT_ALPHA_DARK_MODE) : new Color(244, 77, 0, HIGHLIGHT_ALPHA_LIGHT_MODE);
     }
 
     public String generateDiff(String baseText, String newText, List<CustomHighlight> highlighters) {
