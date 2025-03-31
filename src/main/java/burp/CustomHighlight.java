@@ -39,16 +39,13 @@ public record CustomHighlight(int startLine, int endLine, Color color) {
 }
 
 class CustomHttpResponseEditor implements ExtensionProvidedHttpResponseEditor, PropertyChangeListener {
-
-    private static final int HIGHLIGHT_ALPHA_LIGHT_MODE = 0x60;
-    private static final int HIGHLIGHT_ALPHA_DARK_MODE = 0x2a;
+    private static int lastSelectedDiffMode = 0;
     private static final String DIFF_MODE_MINIMAL = "Minimal Diff";
     private static final String DIFF_MODE_FULL = "Full Diff";
     private final MontoyaApi api;
 
     private final RawEditor responseEditor;
     private final JTextArea textArea;
-    private final JButton setBaselineButton;
     private final JComboBox<String> diffModeDropdown;
     private final JPanel tabRoot;
 
@@ -69,10 +66,15 @@ class CustomHttpResponseEditor implements ExtensionProvidedHttpResponseEditor, P
 
         String[] choices = {DIFF_MODE_FULL, DIFF_MODE_MINIMAL};
         this.diffModeDropdown = new JComboBox<String>(choices);
+        // To keep tabs between different tools (repeater, proxy, etc) somewhat consistent, we create new tabs with the last selected mode
+        diffModeDropdown.setSelectedIndex(lastSelectedDiffMode);
         // Update listing if the selection is changed
-        diffModeDropdown.addActionListener (e -> setRequestResponse(this.requestResponse));
+        diffModeDropdown.addActionListener (e -> {
+                lastSelectedDiffMode = diffModeDropdown.getSelectedIndex();
+                setRequestResponse(this.requestResponse);
+        });
 
-        this.setBaselineButton = new JButton("Set As Diff Base");
+        JButton setBaselineButton = new JButton("Set As Diff Base");
         setBaselineButton.addActionListener(e -> {
             Optional<HttpResponse> response = Optional.ofNullable(getResponse());
             BaseResponse.setBaseResponse(response);
@@ -108,13 +110,12 @@ class CustomHttpResponseEditor implements ExtensionProvidedHttpResponseEditor, P
         HttpResponse curr = requestResponse.response();
         HttpResponse base = BaseResponse.getBaseResponse().orElse(curr);
 
-        List<CustomHighlight> highlighters = new ArrayList<>();
-        String diff = generateDiff(base.toString(), curr.toString(), highlighters);
+        DiffHelper diff = generateDiff(base.toString(), curr.toString());
 
-        this.responseEditor.setContents(ByteArray.byteArray(diff));
+        this.responseEditor.setContents(ByteArray.byteArray(diff.diffText));
         this.textArea.getHighlighter().removeAllHighlights();
 
-        for (CustomHighlight h : highlighters) {
+        for (CustomHighlight h : diff.highlighters) {
             try {
                 int startOffset = textArea.getLineStartOffset(h.startLine());
                 int endOffset = textArea.getLineEndOffset(h.endLine() - 1);
@@ -157,126 +158,12 @@ class CustomHttpResponseEditor implements ExtensionProvidedHttpResponseEditor, P
         setRequestResponse(this.requestResponse);
     }
 
-    public boolean isDarkMode() {
-        return api.userInterface().currentTheme() == Theme.DARK;
-    }
-
-    public Color getInsertColor() {
-        return isDarkMode() ? new Color(0, 255, 0, HIGHLIGHT_ALPHA_DARK_MODE) : new Color(0, 255, 0, HIGHLIGHT_ALPHA_LIGHT_MODE);
-    }
-
-    public Color getDeleteColor() {
-        return isDarkMode() ? new Color(255, 84, 0, HIGHLIGHT_ALPHA_DARK_MODE) : new Color(244, 77, 0, HIGHLIGHT_ALPHA_LIGHT_MODE);
-    }
-
-    public Color getChangeNewColor() {
-        return this.getInsertColor();
-    }
-
-    public Color getChangeOldColor() {
-        return this.getDeleteColor();
-    }
-
-    public String generateDiff(String baseText, String newText, List<CustomHighlight> highlighters) {
-        List<String> baseLines = Arrays.asList(baseText.split("\n"));
-        List<String> newLines = Arrays.asList(newText.split("\n"));
-        StringBuilder result = new StringBuilder();
-
-        Patch<String> patch = DiffUtils.diff(baseLines, newLines, new MyersDiff<>(), null, true);
-
-        int startLine = 0;
-
-        Color insertColor = getInsertColor();
-        Color deleteColor = getDeleteColor();
-        Color changeNew = getChangeNewColor();
-        Color changeOld = getChangeOldColor();
-
+    public DiffHelper generateDiff(String baseText, String newText) {
+        boolean isDarkMode = api.userInterface().currentTheme() == Theme.DARK;
         if (diffModeDropdown.getSelectedItem() == DIFF_MODE_FULL) {
-            int endLine = 0;
-
-            for (AbstractDelta<String> delta : patch.getDeltas()) {
-                switch (delta.getType()) {
-                    case INSERT:
-                        delta.getTarget().getLines().forEach(line -> result.append(line).append("\n"));
-                        endLine = startLine + delta.getTarget().getLines().size();
-                        highlighters.add(new CustomHighlight(startLine, endLine, insertColor));
-                        startLine = endLine;
-                        break;
-
-                    case DELETE:
-                        delta.getSource().getLines().forEach(line -> result.append(line).append("\n"));
-                        endLine = startLine + delta.getSource().getLines().size();
-                        highlighters.add(new CustomHighlight(startLine, endLine, deleteColor));
-                        startLine = endLine;
-                        break;
-
-                    case CHANGE:
-                        delta.getSource().getLines().forEach(line -> result.append(line).append("\n"));
-                        endLine = startLine + delta.getSource().getLines().size();
-                        highlighters.add(new CustomHighlight(startLine, endLine, changeOld));
-                        startLine = endLine;
-                        delta.getTarget().getLines().forEach(line -> result.append(line).append("\n"));
-                        endLine = startLine + delta.getTarget().getLines().size();
-                        highlighters.add(new CustomHighlight(startLine, endLine, changeNew));
-                        startLine = endLine;
-                        break;
-
-                    case EQUAL:
-                        delta.getSource().getLines().forEach(line -> result.append(line).append("\n"));
-                        endLine = startLine + delta.getTarget().getLines().size();
-                        startLine = endLine;
-                        break;
-                }
-            }
+            return DiffHelper.generateFullDiffString(baseText, newText, isDarkMode);
         } else {
-            int lineNumberInUnshortenedText = 1;
-
-            for (AbstractDelta<String> delta : patch.getDeltas()) {
-                if (delta.getType() != DeltaType.EQUAL) {
-                    // Print a header where the difference is
-                    result.append(String.format("Difference in line %d:\n", lineNumberInUnshortenedText));
-                    startLine++;
-                }
-                int endLine = -1;
-
-                switch (delta.getType()) {
-                    case INSERT:
-                        delta.getTarget().getLines().forEach(line -> result.append(line).append("\n"));
-                        endLine = startLine + delta.getTarget().getLines().size();
-                        highlighters.add(new CustomHighlight(startLine, endLine, insertColor));
-                        break;
-
-                    case DELETE:
-                        delta.getSource().getLines().forEach(line -> result.append(line).append("\n"));
-                        endLine = startLine + delta.getSource().getLines().size();
-                        highlighters.add(new CustomHighlight(startLine, endLine, deleteColor));
-                        break;
-
-                    case CHANGE:
-                        delta.getSource().getLines().forEach(line -> result.append(line).append("\n"));
-                        endLine = startLine + delta.getSource().getLines().size();
-                        highlighters.add(new CustomHighlight(startLine, endLine, deleteColor));
-                        startLine = endLine;
-                        delta.getTarget().getLines().forEach(line -> result.append(line).append("\n"));
-                        endLine = startLine + delta.getTarget().getLines().size();
-                        highlighters.add(new CustomHighlight(startLine, endLine, insertColor));
-                        break;
-
-                    case EQUAL:
-                        // result.append(String.format("[%d equal lines]\n", delta.getTarget().getLines().size()));
-                        // startLine++;
-                        break;
-                }
-                if (delta.getType() != DeltaType.EQUAL) {
-                    // Print a header where the difference is
-                    result.append("\n");
-                    startLine = endLine + 1;
-                }
-
-                lineNumberInUnshortenedText += delta.getTarget().getLines().size();
-            }
+            return DiffHelper.generateMinimalDiffString(baseText, newText, isDarkMode);
         }
-
-        return result.toString();
     }
 }
