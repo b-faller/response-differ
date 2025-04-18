@@ -9,7 +9,8 @@ public class ResponseDiffer implements BurpExtension {
     public void initialize(MontoyaApi api) {
         api.extension().setName("ResponseDiffer");
 
-        api.userInterface().registerHttpResponseEditorProvider(new CustomResponseEditorProvider(api));
+        api.userInterface().registerHttpResponseEditorProvider(editorContext -> new ResponseDiffEditorTab(api, editorContext));
+        api.userInterface().registerHttpRequestEditorProvider(editorContext -> new RequestDiffEditorTab(api, editorContext));
         api.userInterface().registerContextMenuItemsProvider(new CustomContextMenuItemsProvider(api));
 
         api.logging().logToOutput("ResponseDiffer extension loaded");
