@@ -39,16 +39,13 @@ public class CustomContextMenuItemsProvider implements ContextMenuItemsProvider 
         if (requestResponse == null) {
             return null;
         }
-        
-        // Get the response and return null if not present
-        HttpResponse response = requestResponse.response();
-        if (response == null) {
-            return null;
-        }
-        
+
+        // Compiler wanted this, because it wants final fields in a closure
+        final HttpRequestResponse requestResponse2 = requestResponse;
+
         // Create menu item
         JMenuItem menuItem = new JMenuItem("Set As Diff Base");
-        menuItem.addActionListener(l -> BaseResponse.setBaseResponse(Optional.of(response)));
+        menuItem.addActionListener(l -> BaseResponse.setBaseRequestResponsePair(requestResponse2));
         
         return List.of(menuItem);
     }
